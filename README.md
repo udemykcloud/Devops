@@ -1,5 +1,7 @@
 # DevOps Foundation Training 
 
+## DAY - 1
+
 ---
 
 # 1️⃣ SDLC Models – Agile vs Waterfall
