@@ -425,24 +425,4 @@ Make sure you understand:
 
 ---
 
-# 10️⃣ Suggested Repository Structure
 
-```
-devops-training/
-│
-├── README.md
-├── agile-basics.md
-├── git-basics.md
-├── git-advanced.md
-└── exercises/
-```
-
----
-
-# End of Module
-
-This module prepares a DevOps Engineer to:
-- Work in Agile teams
-- Use Git confidently
-- Contribute to CI/CD pipelines
-- Follow industry Git workflows
