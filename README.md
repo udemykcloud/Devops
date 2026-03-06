@@ -425,4 +425,138 @@ Make sure you understand:
 
 ---
 
+### Day 2 
+
+1. Basic Navigation Commands
+Command	Description	Example
+pwd	Print current working directory	pwd
+ls	List files and directories	ls -l
+cd	Change directory	cd /var/log
+tree	Display directory structure	tree
+pwd
+ls -la
+cd /etc
+tree
+2. File and Directory Management
+Command	Description	Example
+touch	Create empty file	touch file.txt
+mkdir	Create directory	mkdir logs
+cp	Copy files/directories	cp file.txt backup/
+mv	Move or rename files	mv file.txt newfile.txt
+rm	Delete files/directories	rm file.txt
+mkdir project
+touch app.log
+cp app.log backup/
+mv app.log app-old.log
+rm app-old.log
+3. File Viewing Commands
+Command	Description	Example
+cat	Display file content	cat file.txt
+less	View large files	less logfile.log
+head	View first lines	head -n 10 file.txt
+tail	View last lines	tail -n 20 file.txt
+tail -f	Follow live logs	tail -f app.log
+cat config.yaml
+less /var/log/syslog
+tail -f application.log
+4. Search and Text Processing
+Command	Description	Example
+grep	Search text in files	grep error app.log
+find	Find files	find / -name file.txt
+awk	Pattern scanning	awk '{print $1}' file.txt
+sed	Stream editor	sed 's/old/new/g' file.txt
+wc	Count lines/words	wc -l file.txt
+grep ERROR app.log
+find /var -name "*.log"
+wc -l access.log
+5. Process Management
+Command	Description	Example
+ps	Show running processes	ps aux
+top	Monitor processes	top
+htop	Interactive process viewer	htop
+kill	Kill process	kill 1234
+kill -9	Force kill process	kill -9 1234
+ps aux | grep nginx
+top
+kill 4567
+6. System Monitoring
+Command	Description	Example
+df	Disk usage	df -h
+du	Directory size	du -sh /var/log
+free	Memory usage	free -m
+uptime	System uptime	uptime
+vmstat	System performance	vmstat
+df -h
+free -m
+du -sh *
+uptime
+7. Networking Commands
+Command	Description	Example
+ping	Test connectivity	ping google.com
+curl	Test HTTP endpoints	curl http://localhost:8080
+wget	Download files	wget https://example.com/file
+netstat	Network connections	netstat -tulnp
+ss	Socket statistics	ss -tulnp
+ping 8.8.8.8
+curl http://localhost:8080/health
+ss -tulnp
+8. Permissions and Ownership
+Command	Description	Example
+chmod	Change file permissions	chmod 755 script.sh
+chown	Change ownership	chown ubuntu:ubuntu file.txt
+whoami	Show current user	whoami
+chmod +x deploy.sh
+chown ec2-user:ec2-user app.log
+9. Compression and Archiving
+Command	Description	Example
+tar	Archive files	tar -cvf archive.tar folder
+tar -xvf	Extract archive	tar -xvf archive.tar
+gzip	Compress file	gzip file.txt
+gunzip	Decompress file	gunzip file.txt.gz
+tar -cvf logs.tar logs/
+tar -xvf logs.tar
+gzip file.txt
+10. Useful DevOps Commands
+Command	Description
+history	Show command history
+watch	Run command repeatedly
+crontab -l	View scheduled jobs
+crontab -e	Edit cron jobs
+history
+watch df -h
+crontab -l
+11. Log Troubleshooting (Very Important for DevOps)
+tail -f /var/log/syslog
+tail -f /var/log/messages
+journalctl -u nginx
+journalctl -xe
+Quick DevOps Troubleshooting Workflow
+1. Check pod/server status
+2. Check logs
+3. Check CPU/Memory
+4. Check disk usage
+5. Check network connectivity
+
+Example:
+
+top
+df -h
+free -m
+ping service
+tail -f /var/log/app.log
+
+If you want, I can also create a much better DevOps GitHub README like senior engineers use, including:
+
+Kubernetes troubleshooting commands
+
+Docker commands
+
+SSH & server debugging
+
+Disk cleanup
+
+Real production debugging workflow
+
+That version looks much more professional in GitHub repos and is great for training your students.
+
 
