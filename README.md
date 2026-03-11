@@ -661,3 +661,241 @@ tail -f /var/log/app.log
 ```
 
 
+DAY 4
+⏺ # AWS Cloud - Beginner's Guide (Hands-On from Console)                                                                                                           
+                                                                                          
+  ## Prerequisites                                                                                                                                                 
+  - AWS Account (Free Tier: https://aws.amazon.com/free)                                                                                                           
+  - A browser (Chrome / Firefox)                                                                                                                                   
+  - Login to: https://console.aws.amazon.com                                                                                                                       
+                  
+  ---
+
+  ## Module 1: AWS S3 (Simple Storage Service)
+  **What is S3?** Object storage to store files (images, videos, backups, static websites).
+
+  ### Key Concepts
+  - **Bucket** → Container (like a folder) to store objects
+  - **Object** → Any file you upload
+  - **Region** → Physical location of your data
+
+  ### Hands-On Lab 1 — Create a Bucket & Upload a File
+  1. Go to **S3** in the AWS Console
+  2. Click **Create bucket**
+  3. Enter a unique bucket name (e.g., `myname-demo-bucket-2024`)
+  4. Choose a region (e.g., `us-east-1`)
+  5. Keep all defaults → Click **Create bucket**
+  6. Click on your bucket → Click **Upload**
+  7. Upload any file (image or text file)
+  8. Click on the uploaded file → observe the **Object URL**
+
+  ### Hands-On Lab 2 — Host a Static Website
+  1. Go to your bucket → **Properties** tab
+  2. Scroll to **Static website hosting** → Enable it
+  3. Set index document: `index.html`
+  4. Go to **Permissions** tab → Edit **Block Public Access** → Uncheck all → Save
+  5. Add a **Bucket Policy** to make files public:
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::YOUR-BUCKET-NAME/*"
+    }]
+  }
+  6. Upload an index.html file → Access the website URL
+
+  ---
+  Module 2: AWS EC2 (Elastic Compute Cloud)
+
+  What is EC2? Virtual machines (servers) in the cloud.
+
+  Key Concepts
+
+  - Instance → A virtual server
+  - AMI → Amazon Machine Image (OS template: Amazon Linux, Ubuntu, etc.)
+  - Instance Type → CPU + RAM specs (e.g., t2.micro = Free Tier)
+  - Key Pair → SSH key to log into your server
+  - Security Group → Firewall rules (which ports are open)
+  - Elastic IP → Static public IP for your instance
+
+  Hands-On Lab 1 — Launch an EC2 Instance
+
+  1. Go to EC2 → Click Launch Instance
+  2. Name: my-first-server
+  3. AMI: Amazon Linux 2023 (Free Tier eligible)
+  4. Instance type: t2.micro (Free Tier)
+  5. Key pair: Click Create new key pair → Name it → Download the .pem file (save it!)
+  6. Network settings: Allow SSH (port 22) and HTTP (port 80)
+  7. Click Launch Instance
+
+  Hands-On Lab 2 — Install a Web Server (Apache)
+
+  1. Connect to your instance:
+    - Select your instance → Click Connect → Use EC2 Instance Connect (browser SSH)
+  2. Run these commands:
+  sudo yum update -y
+  sudo yum install httpd -y
+  sudo systemctl start httpd
+  sudo systemctl enable httpd
+  echo "<h1>Hello from My EC2 Server!</h1>" | sudo tee /var/www/html/index.html
+  3. Copy the Public IPv4 address of your instance
+  4. Paste in browser: http://YOUR-PUBLIC-IP → You should see your webpage!
+
+  ---
+  Module 3: AWS Load Balancer (ELB)
+
+  What is a Load Balancer? Distributes incoming traffic across multiple EC2 instances.
+
+  Key Concepts
+
+  - ALB (Application Load Balancer) → HTTP/HTTPS traffic (most common)
+  - Target Group → Group of EC2 instances that receive traffic
+  - Listener → Checks for connection requests (e.g., on port 80)
+  - Health Check → Automatically removes unhealthy instances
+
+  Hands-On Lab — Create an Application Load Balancer
+
+  1. Launch 2 EC2 instances (repeat Module 2 steps) with different HTML content:
+    - Server 1: <h1>Hello from Server 1!</h1>
+    - Server 2: <h1>Hello from Server 2!</h1>
+  2. Go to EC2 → Target Groups → Create target group
+    - Type: Instances
+    - Name: my-target-group
+    - Protocol: HTTP, Port: 80
+    - Health check path: /
+    - Click Next → Select both EC2 instances → Include as pending → Create
+  3. Go to Load Balancers → Create Load Balancer → Choose Application Load Balancer
+    - Name: my-alb
+    - Scheme: Internet-facing
+    - Select at least 2 Availability Zones
+    - Security group: Allow HTTP port 80
+    - Listener: Forward to your target group
+    - Click Create
+  4. Wait for the ALB state to become Active
+  5. Copy the DNS name of the ALB → Paste in browser
+  6. Refresh multiple times → Traffic alternates between Server 1 and Server 2!
+
+  ---
+  Module 4: AWS Lambda
+
+  What is Lambda? Run code WITHOUT managing servers. Pay only when code runs.
+
+  Key Concepts
+
+  - Function → Your code (Python, Node.js, Java, etc.)
+  - Trigger → What invokes the function (API Gateway, S3 event, schedule, etc.)
+  - Event → Input data passed to the function
+  - Execution Role → IAM permissions for the Lambda function
+
+  Hands-On Lab 1 — Your First Lambda Function
+
+  1. Go to Lambda → Click Create function
+  2. Choose Author from scratch
+  3. Name: my-first-lambda
+  4. Runtime: Python 3.12
+  5. Click Create function
+  6. In the code editor, replace with:
+  import json
+
+  def lambda_handler(event, context):
+      name = event.get("name", "World")
+      return {
+          "statusCode": 200,
+          "body": json.dumps(f"Hello, {name}! Welcome to Lambda!")
+      }
+  7. Click Deploy
+  8. Click Test → Create a test event:
+  {
+    "name": "Alice"
+  }
+  9. Click Test → See the output in Execution results!
+
+  Hands-On Lab 2 — Trigger Lambda from API Gateway
+
+  1. In your Lambda function → Click Add trigger
+  2. Select API Gateway
+  3. Create a new API → Choose HTTP API → Click Add
+  4. Click on the API Gateway trigger → Copy the API endpoint URL
+  5. Paste in browser: https://YOUR-API-URL?name=Alice
+  6. See the JSON response in the browser!
+
+  ---
+  Module 5: Putting It All Together — Architecture Overview
+
+  User Request
+       │
+       ▼
+  [Route 53 / DNS]
+       │
+       ▼
+  [Application Load Balancer]
+       │
+     ┌─┴──────────┐
+     ▼            ▼
+  [EC2 Server 1] [EC2 Server 2]
+     │
+     ▼
+  [S3 Bucket] ← Static files / images
+
+  [Lambda] ← Background tasks / API processing
+
+  ---
+  Cleanup — Avoid Charges!
+
+  After each lab, delete resources to stay within Free Tier:
+
+  ┌─────────────────┬──────────────────────────────────────────────┐
+  │    Resource     │                How to Delete                 │
+  ├─────────────────┼──────────────────────────────────────────────┤
+  │ S3 Bucket       │ Empty the bucket first → then delete         │
+  ├─────────────────┼──────────────────────────────────────────────┤
+  │ EC2 Instance    │ Select instance → Instance State → Terminate │
+  ├─────────────────┼──────────────────────────────────────────────┤
+  │ Load Balancer   │ Select ALB → Actions → Delete                │
+  ├─────────────────┼──────────────────────────────────────────────┤
+  │ Target Group    │ Select → Actions → Delete                    │
+  ├─────────────────┼──────────────────────────────────────────────┤
+  │ Lambda Function │ Select → Actions → Delete                    │
+  └─────────────────┴──────────────────────────────────────────────┘
+
+  ---
+  Learning Path (Recommended Order)
+
+  Week 1: IAM (Users, Roles, Policies) + S3
+  Week 2: EC2 + Security Groups + Key Pairs
+  Week 3: Load Balancer + Auto Scaling
+  Week 4: Lambda + API Gateway
+  Week 5: RDS (Database) + VPC (Networking)
+  Week 6: CloudWatch (Monitoring) + CloudFormation (Infrastructure as Code)
+
+  ---
+  Useful Links
+
+  - AWS Free Tier: https://aws.amazon.com/free
+  - AWS Console: https://console.aws.amazon.com
+  - AWS Documentation: https://docs.aws.amazon.com
+  - AWS Architecture Icons: https://aws.amazon.com/architecture/icons
+
+  ---
+  Tips for Learners
+
+  - Always choose us-east-1 (N. Virginia) — most services are available here
+  - Use Free Tier instances (t2.micro) to avoid charges
+  - Always delete resources after practice
+  - Enable Billing Alerts in your account to avoid surprise bills
+  - Use IAM users instead of the root account for daily work
+
+  ---
+
+  This README covers:
+
+  - **4 core services** with concept explanations + hands-on labs each
+  - **Step-by-step console instructions** a newcomer can follow
+  - **Architecture diagram** showing how all services connect
+  - **Cleanup steps** to avoid unexpected AWS charges
+  - **6-week learning roadmap** for structured progression
+
+
