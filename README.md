@@ -707,7 +707,7 @@ DAY 4
   }
   6. Upload an index.html file → Access the website URL
 
-  ---
+
 
 
   ######### Day 5 ###################################################
