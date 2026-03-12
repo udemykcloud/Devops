@@ -708,6 +708,425 @@ DAY 4
   6. Upload an index.html file → Access the website URL
 
   ---
+
+
+  ######### Day 5 ###################################################
+
+
+  # AWS Networking for Beginners — VPC Deep Dive                                                                                  
+                                                                                                                                  
+  ---                                                                                                                             
+                                                                                                                                  
+  ## 1. What is a Region and Availability Zone?
+
+  ┌─────────────────────────────────────────────────────────┐
+  │                    AWS CLOUD                            │
+  │                                                         │
+  │   ┌─────────────────────────────────────────────────┐   │
+  │   │            REGION  (e.g. us-east-1)             │   │
+  │   │                                                 │   │
+  │   │  ┌──────────────┐    ┌──────────────┐           │   │
+  │   │  │     AZ - 1a  │    │     AZ - 1b  │           │   │
+  │   │  │  (Data Ctr1) │    │  (Data Ctr2) │           │   │
+  │   │  └──────────────┘    └──────────────┘           │   │
+  │   │                                                 │   │
+  │   │  ┌──────────────┐                               │   │
+  │   │  │     AZ - 1c  │  ← Each AZ = isolated        │   │
+  │   │  │  (Data Ctr3) │    physical data center       │   │
+  │   │  └──────────────┘                               │   │
+  │   └─────────────────────────────────────────────────┘   │
+  └─────────────────────────────────────────────────────────┘
+
+  | Term              | Definition                                                      |
+  |-------------------|-----------------------------------------------------------------|
+  | **Region**        | A geographic area with multiple data centers (e.g., us-east-1) |
+  | **Availability Zone (AZ)** | One or more isolated data centers within a Region    |
+
+  > **Rule of thumb:** Deploy resources across multiple AZs for high availability.
+
+  ---
+
+  ## 2. What is a VPC?
+
+  A **Virtual Private Cloud (VPC)** is your own logically isolated network inside AWS. Think of it as your own private data center
+   in the cloud.
+
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │                        YOUR VPC  (10.0.0.0/16)                       │
+  │                                                                      │
+  │   ┌────────────────────────┐    ┌────────────────────────┐           │
+  │   │  PUBLIC SUBNET         │    │  PRIVATE SUBNET         │           │
+  │   │  10.0.1.0/24  (AZ-1a) │    │  10.0.2.0/24  (AZ-1b)  │           │
+  │   │                        │    │                         │           │
+  │   │  ┌──────────────────┐  │    │  ┌──────────────────┐  │           │
+  │   │  │   EC2 (Web App)  │  │    │  │   EC2 (Database) │  │           │
+  │   │  │   Elastic IP     │  │    │  │   No Public IP   │  │           │
+  │   │  └──────────────────┘  │    │  └──────────────────┘  │           │
+  │   └──────────┬─────────────┘    └────────────┬────────────┘           │
+  │              │                               │                        │
+  │   ┌──────────▼─────────────────────────────────────────────────────┐ │
+  │   │               ROUTER  (implicit, always present)               │ │
+  │   └──────────┬─────────────────────────────────────────────────────┘ │
+  │              │                                                        │
+  │   ┌──────────▼─────────┐      ┌─────────────────────┐                │
+  │   │  INTERNET GATEWAY  │      │     NAT GATEWAY      │                │
+  │   │  (Public traffic)  │      │  (Private→Internet)  │                │
+  │   └──────────┬─────────┘      └──────────────────────┘                │
+  └──────────────┼───────────────────────────────────────────────────────┘
+                 │
+          ┌──────▼──────┐
+          │  INTERNET   │
+          └─────────────┘
+
+  ---
+
+  ## 3. VPC Components Explained
+
+  ### 3.1 Subnet
+
+  A **subnet** is a range of IP addresses within your VPC. It lives in one AZ.
+
+  | Type            | Has Route to Internet? | Use Case              |
+  |-----------------|------------------------|-----------------------|
+  | Public Subnet   | Yes (via IGW)          | Web servers, Load balancers |
+  | Private Subnet  | No (only via NAT)      | Databases, App servers |
+
+  ---
+
+  ### 3.2 Route Table
+
+  A **route table** is a set of rules (routes) that determines where network traffic is directed.
+
+  PUBLIC SUBNET Route Table:
+  ┌─────────────────────────────────────────────────────┐
+  │  Destination        │  Target                       │
+  │─────────────────────│───────────────────────────────│
+  │  10.0.0.0/16        │  local          ← VPC traffic │
+  │  0.0.0.0/0          │  igw-xxxxxxxx   ← Internet    │
+  └─────────────────────────────────────────────────────┘
+
+  PRIVATE SUBNET Route Table:
+  ┌─────────────────────────────────────────────────────┐
+  │  Destination        │  Target                       │
+  │─────────────────────│───────────────────────────────│
+  │  10.0.0.0/16        │  local          ← VPC traffic │
+  │  0.0.0.0/0          │  nat-xxxxxxxx   ← NAT Gateway │
+  └─────────────────────────────────────────────────────┘
+
+  ---
+
+  ### 3.3 Router
+
+  The **implicit router** in a VPC handles all traffic between subnets and to/from gateways. It is automatically created — you
+  don't manage it directly. You control its behavior through Route Tables.
+
+  ---
+
+  ### 3.4 Internet Gateway (IGW)
+
+  An **Internet Gateway** is a horizontally scaled, redundant VPC component that allows communication between your VPC and the
+  internet.
+
+  EC2 (Public Subnet) ──► Route Table (0.0.0.0/0 → IGW) ──► Internet Gateway ──► Internet
+
+  - Attach one IGW per VPC
+  - Enables inbound AND outbound internet traffic for public subnets
+
+  ---
+
+  ### 3.5 NAT Gateway
+
+  A **NAT (Network Address Translation) Gateway** allows instances in a **private subnet** to initiate outbound traffic to the
+  internet while blocking inbound connections.
+
+  EC2 (Private Subnet) ──► Route Table (0.0.0.0/0 → NAT GW) ──► NAT GW (Public Subnet) ──► IGW ──► Internet
+
+  - NAT GW lives in a **public subnet**
+  - It has an **Elastic IP** attached
+  - Traffic is one-way: private → internet only
+
+  ---
+
+  ### 3.6 Elastic IP (EIP)
+
+  A **static, public IPv4 address** allocated to your AWS account that you can attach to EC2 instances or NAT Gateways.
+
+  Without EIP: EC2 reboots → public IP changes
+  With EIP:    EC2 reboots → same public IP always
+
+  ---
+
+  ### 3.7 Elastic Network Interface (ENI)
+
+  An **ENI** is a virtual network card that you can attach to EC2 instances. Every instance has at least one (the primary ENI).
+
+  EC2 Instance
+  ├── eth0 (Primary ENI) — Private IP: 10.0.1.10, Public IP: 54.x.x.x
+  └── eth1 (Secondary ENI) — Private IP: 10.0.2.20 (e.g., for dual-homing)
+
+  ENIs carry: private IPs, public IPs, MAC address, security groups.
+
+  ---
+
+  ### 3.8 Customer Gateway & VPN Connection
+
+  Used to connect your **on-premises data center** to your AWS VPC over an encrypted IPSec tunnel.
+
+  On-Premises Data Center          AWS VPC
+  ┌────────────────────┐           ┌───────────────────────┐
+  │  Your Router       │           │  Virtual Private       │
+  │  (Customer GW)     │◄─────────►│  Gateway (VGW)        │
+  │  IP: 203.x.x.x    │  VPN       │                       │
+  └────────────────────┘  Tunnel   └───────────────────────┘
+
+  | Component           | Description                                     |
+  |---------------------|-------------------------------------------------|
+  | **Customer Gateway**| Represents your on-prem router in AWS           |
+  | **Virtual Private Gateway** | AWS side of the VPN connection         |
+  | **VPN Connection**  | Encrypted IPSec tunnel between both             |
+
+  ---
+
+  ### 3.9 VPC Endpoints
+
+  A **VPC Endpoint** lets your instances access AWS services (S3, DynamoDB) **without going through the internet**.
+
+  WITHOUT Endpoint:
+  EC2 ──► NAT GW ──► Internet ──► S3    ❌ (traffic leaves AWS)
+
+  WITH Endpoint:
+  EC2 ──► VPC Endpoint ──► S3           ✅ (traffic stays in AWS)
+
+  | Type              | Used For                       |
+  |-------------------|-------------------------------|
+  | **Gateway Endpoint** | S3, DynamoDB               |
+  | **Interface Endpoint** | Most other AWS services  |
+
+  ---
+
+  ### 3.10 VPC Peering
+
+  **VPC Peering** connects two VPCs so resources can communicate using private IPs, as if they are in the same network.
+
+  ┌─────────────────┐         ┌─────────────────┐
+  │    VPC A        │         │    VPC B        │
+  │  10.0.0.0/16    │◄───────►│  172.16.0.0/16  │
+  │                 │  VPC    │                 │
+  │  EC2: 10.0.1.5  │ Peering │ EC2: 172.16.1.8 │
+  └─────────────────┘         └─────────────────┘
+
+  **Rules:**
+  - No overlapping CIDR blocks
+  - Not transitive (A↔B and B↔C does NOT mean A↔C)
+  - Works cross-account and cross-region
+
+  ---
+
+  ## 4. Full VPC Architecture Diagram
+
+                            INTERNET
+                               │
+                   ┌───────────▼────────────┐
+                   │    Internet Gateway     │
+                   └───────────┬────────────┘
+                               │
+      ┌────────────────────────▼─────────────────────────────┐
+      │                  VPC  10.0.0.0/16                    │
+      │                                                       │
+      │   ┌──────────────────────────────────────────────┐   │
+      │   │         PUBLIC SUBNET  10.0.1.0/24  (AZ-1a)  │   │
+      │   │                                               │   │
+      │   │   ┌──────────────┐    ┌───────────────────┐  │   │
+      │   │   │  EC2 Web App │    │    NAT Gateway     │  │   │
+      │   │   │  EIP attached│    │    EIP attached    │  │   │
+      │   │   │  ENI: eth0   │    │                   │  │   │
+      │   │   └──────────────┘    └─────────┬─────────┘  │   │
+      │   └──────────────────────────────────┼────────────┘   │
+      │                                      │                 │
+      │   ┌──────────────────────────────────┼────────────┐   │
+      │   │         PRIVATE SUBNET 10.0.2.0/24 (AZ-1b)    │   │
+      │   │                                  │             │   │
+      │   │   ┌──────────────┐    ┌──────────▼──────────┐  │   │
+      │   │   │  EC2 DB      │    │  Route Table:        │  │   │
+      │   │   │  No Public IP│    │  0.0.0.0/0 → NAT GW  │  │   │
+      │   │   │  ENI: eth0   │    └─────────────────────┘  │   │
+      │   │   └──────────────┘                             │   │
+      │   └────────────────────────────────────────────────┘   │
+      │                                                         │
+      │   ┌─────────────────────────────────────────────────┐   │
+      │   │        VPC Endpoint (S3 Gateway)                │   │
+      │   └─────────────────────────────────────────────────┘   │
+      └─────────────────────────────────────────────────────────┘
+                      │
+            ┌─────────▼──────────┐
+            │  On-Prem (VPN)     │
+            │  Customer Gateway  │
+            └────────────────────┘
+
+  ---
+
+  ## 5. Hands-On Demo — Create VPC, Subnet, Route Table, IGW & NAT Gateway
+
+  ### Step 1: Create a VPC
+
+  ```bash
+  # Using AWS CLI
+
+  aws ec2 create-vpc \
+    --cidr-block 10.0.0.0/16 \
+    --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=demo-vpc}]'
+
+  Save the VpcId from the output (e.g., vpc-0abc123).
+
+  ---
+  Step 2: Enable DNS Hostnames on VPC
+
+  aws ec2 modify-vpc-attribute \
+    --vpc-id vpc-0abc123 \
+    --enable-dns-hostnames
+
+  ---
+  Step 3: Create Subnets
+
+  # Public Subnet (AZ: us-east-1a)
+  aws ec2 create-subnet \
+    --vpc-id vpc-0abc123 \
+    --cidr-block 10.0.1.0/24 \
+    --availability-zone us-east-1a \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=public-subnet}]'
+
+  # Private Subnet (AZ: us-east-1b)
+  aws ec2 create-subnet \
+    --vpc-id vpc-0abc123 \
+    --cidr-block 10.0.2.0/24 \
+    --availability-zone us-east-1b \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=private-subnet}]'
+
+  Save both subnet IDs (e.g., subnet-pub-111 and subnet-prv-222).
+
+  ---
+  Step 4: Create and Attach Internet Gateway
+
+  # Create IGW
+  aws ec2 create-internet-gateway \
+    --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=demo-igw}]'
+
+  # Attach IGW to VPC  (use your igw-id from above output)
+  aws ec2 attach-internet-gateway \
+    --internet-gateway-id igw-0xyz789 \
+    --vpc-id vpc-0abc123
+
+  ---
+  Step 5: Create Public Route Table and Associate
+
+  # Create Route Table
+  aws ec2 create-route-table \
+    --vpc-id vpc-0abc123 \
+    --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=public-rt}]'
+
+  # Add route: all internet traffic → IGW
+  aws ec2 create-route \
+    --route-table-id rtb-0pub111 \
+    --destination-cidr-block 0.0.0.0/0 \
+    --gateway-id igw-0xyz789
+
+  # Associate with Public Subnet
+  aws ec2 associate-route-table \
+    --route-table-id rtb-0pub111 \
+    --subnet-id subnet-pub-111
+
+  ---
+  Step 6: Enable Auto-Assign Public IP on Public Subnet
+
+  aws ec2 modify-subnet-attribute \
+    --subnet-id subnet-pub-111 \
+    --map-public-ip-on-launch
+
+  ---
+  Step 7: Create NAT Gateway (for Private Subnet)
+
+  # Allocate an Elastic IP first
+  aws ec2 allocate-address --domain vpc
+
+  # Create NAT Gateway in the PUBLIC subnet with the EIP allocation
+  aws ec2 create-nat-gateway \
+    --subnet-id subnet-pub-111 \
+    --allocation-id eipalloc-0aaa111 \
+    --tag-specifications 'ResourceType=natgateway,Tags=[{Key=Name,Value=demo-nat-gw}]'
+
+  Wait ~1 minute for NAT Gateway to become available.
+
+  ---
+  Step 8: Create Private Route Table and Associate
+
+  # Create Private Route Table
+  aws ec2 create-route-table \
+    --vpc-id vpc-0abc123 \
+    --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=private-rt}]'
+
+  # Add route: private subnet → NAT Gateway
+  aws ec2 create-route \
+    --route-table-id rtb-0prv222 \
+    --destination-cidr-block 0.0.0.0/0 \
+    --nat-gateway-id nat-0natxxx
+
+  # Associate with Private Subnet
+  aws ec2 associate-route-table \
+    --route-table-id rtb-0prv222 \
+    --subnet-id subnet-prv-222
+
+  ---
+  Final Architecture Summary
+
+  You created:
+    VPC            → 10.0.0.0/16
+    Public Subnet  → 10.0.1.0/24 (AZ-1a)  ──► IGW ──► Internet
+    Private Subnet → 10.0.2.0/24 (AZ-1b)  ──► NAT GW (in Public) ──► Internet
+    IGW            → attached to VPC
+    NAT GW         → in Public Subnet with Elastic IP
+    Route Tables   → public-rt (IGW), private-rt (NAT GW)
+
+  ---
+  6. Quick Reference Cheat Sheet
+
+  ┌──────────────────┬──────────────────────────────────────────────┬─────────────────┐
+  │    Component     │                   Purpose                    │    Lives In     │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ VPC              │ Isolated virtual network                     │ Region          │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ Subnet           │ IP range inside VPC                          │ One AZ          │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ Route Table      │ Traffic routing rules                        │ VPC             │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ Router           │ Implicit traffic director                    │ VPC (automatic) │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ Internet Gateway │ VPC ↔ Internet                               │ VPC (attached)  │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ NAT Gateway      │ Private subnet → Internet (outbound only)    │ Public Subnet   │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ Elastic IP       │ Static public IP                             │ Account         │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ ENI              │ Virtual NIC for EC2                          │ Subnet          │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ Customer Gateway │ Represents your on-prem router in AWS        │ Account         │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ VPN Connection   │ Encrypted tunnel: on-prem ↔ VPC              │ VPC             │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ VPC Endpoint     │ Private access to AWS services (no internet) │ VPC             │
+  ├──────────────────┼──────────────────────────────────────────────┼─────────────────┤
+  │ VPC Peering      │ Private connectivity between two VPCs        │ VPC             │
+  └──────────────────┴──────────────────────────────────────────────┴─────────────────┘
+
+  ---
+  Next Steps: Add Security Groups, NACLs, and deploy EC2 instances into your subnets!
+
+  This gives you a complete, copy-paste ready README covering:
+  - Region / AZ concepts with ASCII diagram
+  - Full VPC architecture diagram
+  - All 10 components explained with sub-diagrams
+  - VPC Peering
+  - Step-by-step CLI hands-on demo (Steps 1–8)
+  - Quick reference cheat sheet
   Module 2: AWS EC2 (Elastic Compute Cloud)
 
   What is EC2? Virtual machines (servers) in the cloud.
