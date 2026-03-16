@@ -731,6 +731,7 @@ DAY 4
   6. Network settings: Allow SSH (port 22) and HTTP (port 80)
   7. Click Launch Instance
 
+
   Hands-On Lab 2 — Install a Web Server (Apache)
 
   1. Connect to your instance:
@@ -743,6 +744,278 @@ DAY 4
   echo "<h1>Hello from My EC2 Server!</h1>" | sudo tee /var/www/html/index.html
   3. Copy the Public IPv4 address of your instance
   4. Paste in browser: http://YOUR-PUBLIC-IP → You should see your webpage!
+
+## DAY 5 - AWS IAM & EC2 Deep Dive
+
+### Module 11: IAM — Users, Groups, Policies
+
+**Simple Analogy:** IAM is like an **office building access card system**.
+- **Root Account** = Building owner (has all keys — use only for emergencies)
+- **IAM User** = Individual employee with their own access card
+- **IAM Group** = Department (Developers, DevOps, Finance) — assign permissions once to the group
+- **IAM Policy** = Rules on the card (can enter Server Room, cannot enter CEO office)
+
+**Key Concepts:**
+| Term | What it means |
+|------|--------------|
+| User | A person or app that logs into AWS |
+| Group | Collection of users sharing same permissions |
+| Policy | JSON document saying what is Allow/Deny |
+| Role | Temporary access (for EC2, Lambda, etc.) |
+
+**Policy Example (Read-only S3):**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:ListBucket"],
+    "Resource": "*"
+  }]
+}
+```
+
+**Hands-on Lab:**
+1. Go to AWS Console → IAM
+2. Create a Group called `Developers` → attach `AmazonEC2ReadOnlyAccess` policy
+3. Create a User `dev-user` → add to `Developers` group
+4. Enable Console Access with a password
+5. Login with `dev-user` → try to **stop** an EC2 instance → it will be **denied** ✅
+6. **Best Practice:** Never use root account for daily tasks — always create IAM users
+
+---
+
+### Module 12: Security Groups
+
+**Simple Analogy:** Security Group is a **firewall/bouncer** at the door of your EC2 instance.
+- Controls **who can come IN** (Inbound rules) and **who you can reach OUT to** (Outbound rules)
+- Works at the **instance level**
+- **Stateful** — if you allow inbound traffic, the response automatically goes out
+
+**Key Concepts:**
+| Term | Meaning |
+|------|---------|
+| Inbound Rules | Traffic allowed TO your instance |
+| Outbound Rules | Traffic allowed FROM your instance |
+| Port | Door number (HTTP=80, HTTPS=443, SSH=22, MySQL=3306) |
+| Source | Who is allowed (IP, CIDR, or another Security Group) |
+
+**Common Rules for a Web Server:**
+```
+Inbound:
+  HTTP  (Port 80)  → Source: 0.0.0.0/0      (everyone)
+  HTTPS (Port 443) → Source: 0.0.0.0/0      (everyone)
+  SSH   (Port 22)  → Source: Your IP only   (e.g. 203.0.113.5/32)
+
+Outbound:
+  All traffic → 0.0.0.0/0   (allow everything out — default)
+```
+
+**Hands-on Lab:**
+1. Launch an EC2 instance (Amazon Linux 2)
+2. Add Inbound Rule: SSH Port 22, Source = My IP
+3. SSH into the instance — it works ✅
+4. **Remove** the SSH rule → try again → **Connection timed out** ✅
+5. Add HTTP Port 80 → install Apache → access via browser ✅
+```bash
+sudo yum install httpd -y
+sudo systemctl start httpd
+sudo systemctl enable httpd
+echo "<h1>Hello from EC2!</h1>" | sudo tee /var/www/html/index.html
+```
+
+---
+
+### Module 13: EC2 Instance Role (IAM Role for EC2)
+
+**Simple Analogy:** Instead of giving your **employee (EC2)** a username/password to access the filing room (S3), you give them a **badge (role)** that grants automatic temporary access — no passwords stored anywhere.
+
+**Why use Roles instead of Access Keys?**
+- Access keys stored on EC2 can be stolen if the instance is compromised
+- Roles provide **temporary credentials** that auto-rotate every few hours
+- No hardcoded secrets in your code or environment
+
+**How it works:**
+```
+EC2 Instance → Assumes IAM Role → Gets temporary credentials → Accesses AWS services
+```
+
+**Hands-on Lab:**
+1. IAM → Roles → Create Role → Select **EC2** as trusted entity
+2. Attach policy: `AmazonS3ReadOnlyAccess`
+3. Name it: `ec2-s3-read-role`
+4. Launch EC2 → under **IAM Instance Profile** select `ec2-s3-read-role`
+5. SSH into EC2 → run:
+```bash
+# No credentials needed — role provides them automatically!
+aws s3 ls                           # Lists your S3 buckets ✅
+aws s3 cp s3://your-bucket/file .   # Downloads a file ✅
+```
+6. Launch another EC2 **without** the role → run same commands → **Access Denied** ✅
+
+---
+
+### Module 14: EC2 Instance Purchasing Options
+
+**Simple Analogy:** Like booking a hotel — different ways to pay based on your needs.
+
+| Option | Hotel Analogy | Best For | Savings |
+|--------|--------------|----------|---------|
+| **On-Demand** | Pay per night, no commitment | Dev/test, unpredictable workloads | Baseline |
+| **Reserved (1yr/3yr)** | Book room for a year upfront | Steady production workloads | Up to 72% |
+| **Savings Plans** | Commit to hourly spend | Flexible workloads | Up to 66% |
+| **Spot Instances** | Last-minute hotel deal | Batch jobs, fault-tolerant tasks | Up to 90% |
+| **Dedicated Host** | Rent entire hotel floor | Compliance/BYOL licensing | Varies |
+| **Dedicated Instance** | Private room, no shared walls | Security-sensitive workloads | Higher cost |
+
+**Rule of Thumb:**
+```
+Always-on production DB?    → Reserved Instance (1 or 3 year)
+Variable web traffic?       → On-Demand + Auto Scaling
+Big data / ML training?     → Spot Instances (cheap, but can be interrupted)
+Compliance required?        → Dedicated Host
+```
+
+**Hands-on Lab:**
+1. EC2 Console → **Spot Requests** → Request Spot Instance
+2. Set max price (e.g., `$0.01/hr` for t3.micro)
+3. Instance launches only when spot price ≤ your max price ✅
+4. Go to **AWS Cost Explorer** → Savings Plans → view the savings calculator
+
+---
+
+### Module 15: Private IP, Public IP, and Elastic IP
+
+**Simple Analogy:**
+- **Private IP** = Your home address — only reachable inside your neighborhood (VPC)
+- **Public IP** = Your phone number — internet-reachable, but changes when you restart
+- **Elastic IP** = A permanent phone number you own — never changes
+
+| Type | Scope | Changes on Reboot? | Cost |
+|------|-------|-------------------|------|
+| Private IP | Inside VPC only | No — always same | Free |
+| Public IP | Internet-facing | Yes — on stop/start | Free while running |
+| Elastic IP | Internet-facing | No — static | Free if attached; ~$0.005/hr if idle |
+
+**IP Ranges:**
+```
+Private IPs use RFC 1918 ranges:
+  10.0.0.0/8
+  172.16.0.0/12
+  192.168.0.0/16
+
+Public IPs:  Assigned from AWS pool, released when instance stops
+Elastic IP:  Allocated to your account, you assign/reassign freely
+```
+
+**Hands-on Lab:**
+1. Launch EC2 → note the **Public IP** (e.g., `54.123.45.67`) and **Private IP** (e.g., `10.0.1.25`)
+2. **Stop** the instance → **Start** it → Public IP **changed** ✅, Private IP stayed same ✅
+3. Allocate an Elastic IP: EC2 → Elastic IPs → **Allocate Elastic IP address**
+4. Associate it with your instance
+5. Stop and Start again → Elastic IP **stays the same** ✅
+6. **Cleanup:** Release Elastic IP when not in use to avoid charges
+
+---
+
+### Module 16: EC2 Storage — EBS and EFS
+
+**Simple Analogy:**
+- **EBS** = USB hard drive — plugged into **one laptop (EC2)** at a time
+- **EFS** = Network shared drive (like Google Drive) — **multiple EC2s** can read/write simultaneously
+
+#### EBS (Elastic Block Store)
+
+| Feature | Details |
+|---------|---------|
+| Type | Block storage (like a hard disk) |
+| Attachment | One EC2 at a time (must be in same AZ) |
+| Persistence | Data survives instance stop/start |
+| Use case | OS disk, databases, application data |
+
+**EBS Volume Types:**
+```
+gp3  → General Purpose SSD     — default, best price/performance
+gp2  → Older General Purpose SSD
+io2  → Provisioned IOPS SSD    — high-performance databases (MySQL, Oracle)
+st1  → Throughput HDD          — big data, log processing
+sc1  → Cold HDD                — infrequent access, cheap archival
+```
+
+**EBS Hands-on Lab:**
+```bash
+# 1. Create a 10GB gp3 volume in same AZ as your EC2
+# 2. EC2 Console → Volumes → Attach Volume → select your instance
+
+# 3. SSH into EC2 and set it up:
+lsblk                           # See the new disk (e.g., /dev/xvdf)
+sudo mkfs -t ext4 /dev/xvdf     # Format the disk
+sudo mkdir /data                # Create mount point
+sudo mount /dev/xvdf /data      # Mount it
+df -h                           # Verify it's mounted ✅
+
+# 4. Write and read data:
+echo "Hello EBS" | sudo tee /data/test.txt
+cat /data/test.txt              # Hello EBS ✅
+
+# 5. Persist mount across reboots — add to /etc/fstab:
+echo "/dev/xvdf /data ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab
+```
+
+#### EFS (Elastic File System)
+
+| Feature | Details |
+|---------|---------|
+| Type | Network file system (NFS) |
+| Attachment | Multiple EC2s simultaneously, across AZs |
+| Scaling | Automatically grows and shrinks |
+| Use case | Shared web content, CMS files, ML datasets |
+
+**EFS Hands-on Lab:**
+```bash
+# 1. EFS Console → Create File System → select your VPC → Create
+
+# 2. On BOTH EC2 instances — install NFS client:
+sudo yum install -y amazon-efs-utils
+
+# 3. Mount on both instances (replace fs-XXXXXXXX with your EFS ID):
+sudo mkdir /shared
+sudo mount -t efs fs-XXXXXXXX:/ /shared
+
+# 4. On EC2-1 — write a file:
+echo "Written from EC2-1" | sudo tee /shared/hello.txt
+
+# 5. On EC2-2 — read the same file:
+cat /shared/hello.txt           # "Written from EC2-1" ✅ Shared storage works!
+```
+
+**EBS vs EFS — When to use which:**
+```
+Use EBS when:
+  ✅ Single EC2 needs fast, dedicated storage
+  ✅ Running a database (MySQL, PostgreSQL)
+  ✅ OS root volume
+
+Use EFS when:
+  ✅ Multiple EC2s need to share the same files
+  ✅ Web server farm serving same static content
+  ✅ Machine learning — multiple training nodes reading same dataset
+```
+
+---
+
+### DAY 5 Summary
+
+| Topic | Key Takeaway |
+|-------|-------------|
+| IAM Users/Groups/Policies | Never use root; use groups to manage permissions at scale |
+| Security Groups | Stateful firewall at instance level; deny by default |
+| EC2 Instance Role | Assign roles, never hardcode credentials on EC2 |
+| Purchasing Options | On-Demand for flexibility, Reserved for savings, Spot for batch |
+| IP Types | Elastic IP = static public IP you own; regular public IP changes on reboot |
+| EBS vs EFS | EBS = one EC2, EFS = shared across many EC2s |
+
+  
 
   ---
   Module 3: AWS Load Balancer (ELB)
