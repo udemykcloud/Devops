@@ -817,7 +817,10 @@ Outbound:
 3. SSH into the instance — it works ✅
 4. **Remove** the SSH rule → try again → **Connection timed out** ✅
 5. Add HTTP Port 80 → install Apache → access via browser ✅
+6. add below script to userdata.
 ```bash
+
+#!/bin/bash
 sudo yum install httpd -y
 sudo systemctl start httpd
 sudo systemctl enable httpd
