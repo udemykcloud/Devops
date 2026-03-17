@@ -954,9 +954,9 @@ sc1  → Cold HDD                — infrequent access, cheap archival
 
 # 3. SSH into EC2 and set it up:
 lsblk                           # See the new disk (e.g., /dev/xvdf)
-sudo mkfs -t ext4 /dev/xvdf     # Format the disk
+sudo mkfs -t ext4 nvme1n1    # Format the disk
 sudo mkdir /data                # Create mount point
-sudo mount /dev/xvdf /data      # Mount it
+sudo mount /dev/nvme1n1 /data      # Mount it
 df -h                           # Verify it's mounted ✅
 
 # 4. Write and read data:
