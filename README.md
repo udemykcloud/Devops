@@ -858,6 +858,8 @@ aws s3 cp s3://your-bucket/file .   # Downloads a file ✅
 
 ---
 
+DAY 6
+
 ### Module 14: EC2 Instance Purchasing Options
 
 **Simple Analogy:** Like booking a hotel — different ways to pay based on your needs.
