@@ -1023,6 +1023,10 @@ Use EFS when:
   
 
   ---
+
+  Day 9 
+
+  ***********************************************************************************************
   Module 3: AWS Load Balancer (ELB)
 
   What is a Load Balancer? Distributes incoming traffic across multiple EC2 instances.
