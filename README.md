@@ -1024,7 +1024,7 @@ Use EFS when:
 
   ---
 
-  Day 9 
+  ## Day 9 
 
   ***********************************************************************************************
   Module 3: AWS Load Balancer (ELB)
@@ -1061,6 +1061,263 @@ Use EFS when:
   6. Refresh multiple times → Traffic alternates between Server 1 and Server 2!
 
   ---
+
+  # Terraform for Beginners
+
+  ## What is Terraform?
+
+  Terraform is an open-source **Infrastructure as Code (IaC)** tool by HashiCorp.
+  It lets you define, provision, and manage cloud infrastructure using a simple
+  declarative configuration language called **HCL (HashiCorp Configuration Language)**.
+
+  Instead of clicking through cloud consoles, you write code to create servers,
+  databases, networks, and more — on AWS, Azure, GCP, or any cloud provider.
+
+  ---
+
+  ## Why Terraform?
+
+  | Problem (Without Terraform)       | Solution (With Terraform)              |
+  |-----------------------------------|----------------------------------------|
+  | Manual clicks in cloud console    | Code-driven, repeatable setup          |
+  | Hard to replicate environments    | Same code for dev, staging, production |
+  | No history of infra changes       | Version-controlled infrastructure      |
+  | Different tools per cloud         | One tool for all cloud providers       |
+
+  ---
+
+  ## Core Concepts
+
+  ### 1. Provider
+  A **provider** is a plugin that lets Terraform talk to a cloud platform or service.
+
+  ```hcl
+  provider "aws" {
+    region = "us-east-1"
+  }
+
+  2. Resource
+
+  A resource is the actual infrastructure component you want to create (e.g., EC2 instance, S3 bucket).
+
+  resource "aws_instance" "my_server" {
+    ami           = "ami-0c55b159cbfafe1f0"
+    instance_type = "t2.micro"
+  }
+
+  3. Variable
+
+  Variables make your code reusable and configurable.
+
+  variable "region" {
+    description = "AWS region"
+    default     = "us-east-1"
+  }
+
+  4. Output
+
+  Outputs display useful information after Terraform applies changes.
+
+  output "server_ip" {
+    value = aws_instance.my_server.public_ip
+  }
+
+  5. State
+
+  Terraform stores the current state of your infrastructure in a state file (terraform.tfstate).
+  It uses this to know what exists and what needs to change.
+
+  6. Module
+
+  A module is a reusable group of Terraform resources — like a function in programming.
+
+  ---
+  Terraform Workflow (The 4 Key Commands)
+
+  terraform init       # Download providers and initialize the project
+  terraform plan       # Preview what changes will be made (dry run)
+  terraform apply      # Apply the changes to create/update infrastructure
+  terraform destroy    # Tear down all the infrastructure
+
+  Step-by-step flow:
+
+  Write .tf files  →  terraform init  →  terraform plan  →  terraform apply
+
+  ---
+  File Structure
+
+  my-project/
+  ├── main.tf          # Main resource definitions
+  ├── variables.tf     # Input variable declarations
+  ├── outputs.tf       # Output value declarations
+  ├── terraform.tfvars # Actual variable values (don't commit secrets!)
+  └── provider.tf      # Provider configuration
+
+  ---
+  Your First Terraform Project (AWS S3 Bucket)
+
+  Step 1 — Install Terraform
+
+  Download from: https://developer.hashicorp.com/terraform/downloads
+
+  Verify installation:
+  terraform -version
+
+  Step 2 — Write the configuration
+
+  provider.tf
+  terraform {
+    required_providers {
+      aws = {
+        source  = "hashicorp/aws"
+        version = "~> 5.0"
+      }
+    }
+  }
+
+  provider "aws" {
+    region = var.region
+  }
+
+  variables.tf
+  variable "region" {
+    description = "AWS region to deploy resources"                                                                                                                                                                 
+    type        = string                          
+    default     = "us-east-1"                                                                                                                                                                                      
+  }                          
+   
+  variable "bucket_name" {
+    description = "Name of the S3 bucket"
+    type        = string                 
+  }                                                                                                                                                                                                                
+                                                                                                                                                                                                                   
+  main.tf                                                                                                                                                                                                          
+  resource "aws_s3_bucket" "my_bucket" {                                                                                                                                                                           
+    bucket = var.bucket_name            
+                            
+    tags = {                                                                                                                                                                                                       
+      Environment = "dev"
+      ManagedBy   = "Terraform"                                                                                                                                                                                    
+    }                          
+  }  
+   
+  outputs.tf
+  output "bucket_name" {                                                                                                                                                                                           
+    description = "The name of the S3 bucket"
+    value       = aws_s3_bucket.my_bucket.id                                                                                                                                                                       
+  }                                                                                                                                                                                                                
+  
+  terraform.tfvars                                                                                                                                                                                                 
+  bucket_name = "my-first-terraform-bucket-12345"
+                                                                                                                                                                                                                   
+  Step 3 — Run Terraform
+                                                                                                                                                                                                                   
+  terraform init      # Initialize (downloads AWS provider)
+  terraform plan      # See what will be created                                                                                                                                                                   
+  terraform apply     # Type 'yes' to confirm and create the bucket
+  terraform destroy   # Clean up when done                                                                                                                                                                         
+                  
+  ---                                                                                                                                                                                                              
+  Key HCL Syntax Rules
+                                                                                                                                                                                                                   
+  # This is a comment
+                                                                                                                                                                                                                   
+  # Block syntax                                                                                                                                                                                                   
+  resource "resource_type" "name" {
+    argument = "value"                                                                                                                                                                                             
+  }               
+
+  # Reference another resource
+  value = resource_type.name.attribute
+                                                                                                                                                                                                                   
+  # Use a variable
+  value = var.variable_name                                                                                                                                                                                        
+                  
+  # String interpolation                                                                                                                                                                                           
+  name = "prefix-${var.environment}-suffix"
+                                                                                                                                                                                                                   
+  # List                                                                                                                                                                                                           
+  availability_zones = ["us-east-1a", "us-east-1b"]                                                                                                                                                                
+                                                                                                                                                                                                                   
+  # Map           
+  tags = {
+    key   = "value"
+    owner = "team-name"
+  }
+
+  ---                                                                                                                                                                                                              
+  Terraform State — Important Points
+                                                                                                                                                                                                                   
+  - terraform.tfstate — tracks what Terraform has created
+  - Never manually edit the state file                                                                                                                                                                             
+  - Never delete it accidentally (you'll lose track of your infra)
+  - For teams, store state remotely (e.g., AWS S3 + DynamoDB for locking)                                                                                                                                          
+                                                                                                                                                                                                                   
+  # Remote state example (S3 backend)                                                                                                                                                                              
+  terraform {                                                                                                                                                                                                      
+    backend "s3" {
+      bucket = "my-terraform-state"                                                                                                                                                                                
+      key    = "project/terraform.tfstate"
+      region = "us-east-1"                                                                                                                                                                                         
+    }                                                                                                                                                                                                              
+  }                                                                                                                                                                                                                
+                                                                                                                                                                                                                   
+  ---             
+  Common Mistakes to Avoid
+                          
+  ┌──────────────────────────────────────────┬────────────────────────────────────────┐
+  │                 Mistake                  │           Why It's a Problem           │                                                                                                                            
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤
+  │ Committing terraform.tfvars with secrets │ Exposes credentials in version control │                                                                                                                            
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤
+  │ Skipping terraform plan                  │ Surprises during apply                 │                                                                                                                            
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤                                                                                                                            
+  │ Using latest provider version            │ Breaking changes can occur             │                                                                                                                            
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤                                                                                                                            
+  │ Hardcoding values instead of variables   │ Code is not reusable                   │
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤                                                                                                                            
+  │ Not using remote state in teams          │ State conflicts between team members   │
+  └──────────────────────────────────────────┴────────────────────────────────────────┘                                                                                                                            
+  
+  ---                                                                                                                                                                                                              
+  Useful Commands Cheat Sheet
+
+  terraform init              # Initialize project
+  terraform plan              # Dry run                                                                                                                                                                            
+  terraform apply             # Apply changes
+  terraform apply -auto-approve  # Skip confirmation prompt                                                                                                                                                        
+  terraform destroy           # Destroy all resources                                                                                                                                                              
+  terraform fmt               # Format .tf files
+  terraform validate          # Check config for errors                                                                                                                                                            
+  terraform show              # Show current state                                                                                                                                                                 
+  terraform output            # Show output values
+  terraform state list        # List all resources in state                                                                                                                                                        
+                                                                                                                                                                                                                   
+  ---                                                                                                                                                                                                              
+  Learning Path                                                                                                                                                                                                    
+                  
+  1. Week 1 — Install Terraform, understand HCL syntax, create a simple S3 bucket or resource group
+  2. Week 2 — Learn variables, outputs, and data sources                                                                                                                                                           
+  3. Week 3 — Explore modules, remote state, and workspaces                                                                                                                                                        
+  4. Week 4 — Build a real project: VPC + EC2 + Security Groups on AWS                                                                                                                                             
+                                                                                                                                                                                                                   
+  ---                                                                                                                                                                                                              
+  Further Reading                                                                                                                                                                                                  
+                  
+  - Official Docs: https://developer.hashicorp.com/terraform/docs
+  - Registry (providers & modules): https://registry.terraform.io                                                                                                                                                  
+  - Interactive tutorials: https://developer.hashicorp.com/terraform/tutorials                                                                                                                                     
+                                                                                                                                                                                                                   
+  ---                                                                                                                                                                                                              
+                                                                                                                                                                                                                   
+  This covers everything a fresher needs to get started:                                                                                                                                                           
+  - **What** Terraform is and **why** it's used
+  - **Core concepts** with simple examples                                                                                                                                                                         
+  - **Hands-on first project** (S3 bucket)                                                                                                                                                                         
+  - **HCL syntax** reference                                                                                                                                                                                       
+  - **Common mistakes** to avoid                                                                                                                                                                                   
+  - **Cheat sheet** of commands
+  - A **learning path** for the next 4 weeks      
   Module 4: AWS Lambda
 
   What is Lambda? Run code WITHOUT managing servers. Pay only when code runs.
