@@ -1150,6 +1150,7 @@ DAY 4
   6. Network settings: Allow SSH (port 22) and HTTP (port 80)
   7. Click Launch Instance
 
+
   Hands-On Lab 2 — Install a Web Server (Apache)
 
   1. Connect to your instance:
@@ -1163,7 +1164,288 @@ DAY 4
   3. Copy the Public IPv4 address of your instance
   4. Paste in browser: http://YOUR-PUBLIC-IP → You should see your webpage!
 
+## DAY 5 - AWS IAM & EC2 Deep Dive
+
+### Module 11: IAM — Users, Groups, Policies
+
+**Simple Analogy:** IAM is like an **office building access card system**.
+- **Root Account** = Building owner (has all keys — use only for emergencies)
+- **IAM User** = Individual employee with their own access card
+- **IAM Group** = Department (Developers, DevOps, Finance) — assign permissions once to the group
+- **IAM Policy** = Rules on the card (can enter Server Room, cannot enter CEO office)
+
+**Key Concepts:**
+| Term | What it means |
+|------|--------------|
+| User | A person or app that logs into AWS |
+| Group | Collection of users sharing same permissions |
+| Policy | JSON document saying what is Allow/Deny |
+| Role | Temporary access (for EC2, Lambda, etc.) |
+
+**Policy Example (Read-only S3):**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:ListBucket"],
+    "Resource": "*"
+  }]
+}
+```
+
+**Hands-on Lab:**
+1. Go to AWS Console → IAM
+2. Create a Group called `Developers` → attach `AmazonEC2ReadOnlyAccess` policy
+3. Create a User `dev-user` → add to `Developers` group
+4. Enable Console Access with a password
+5. Login with `dev-user` → try to **stop** an EC2 instance → it will be **denied** ✅
+6. **Best Practice:** Never use root account for daily tasks — always create IAM users
+
+---
+
+### Module 12: Security Groups
+
+**Simple Analogy:** Security Group is a **firewall/bouncer** at the door of your EC2 instance.
+- Controls **who can come IN** (Inbound rules) and **who you can reach OUT to** (Outbound rules)
+- Works at the **instance level**
+- **Stateful** — if you allow inbound traffic, the response automatically goes out
+
+**Key Concepts:**
+| Term | Meaning |
+|------|---------|
+| Inbound Rules | Traffic allowed TO your instance |
+| Outbound Rules | Traffic allowed FROM your instance |
+| Port | Door number (HTTP=80, HTTPS=443, SSH=22, MySQL=3306) |
+| Source | Who is allowed (IP, CIDR, or another Security Group) |
+
+**Common Rules for a Web Server:**
+```
+Inbound:
+  HTTP  (Port 80)  → Source: 0.0.0.0/0      (everyone)
+  HTTPS (Port 443) → Source: 0.0.0.0/0      (everyone)
+  SSH   (Port 22)  → Source: Your IP only   (e.g. 203.0.113.5/32)
+
+Outbound:
+  All traffic → 0.0.0.0/0   (allow everything out — default)
+```
+
+**Hands-on Lab:**
+1. Launch an EC2 instance (Amazon Linux 2)
+2. Add Inbound Rule: SSH Port 22, Source = My IP
+3. SSH into the instance — it works ✅
+4. **Remove** the SSH rule → try again → **Connection timed out** ✅
+5. Add HTTP Port 80 → install Apache → access via browser ✅
+6. add below script to userdata.
+```bash
+
+#!/bin/bash
+sudo yum install httpd -y
+sudo systemctl start httpd
+sudo systemctl enable httpd
+echo "<h1>Hello from EC2!</h1>" | sudo tee /var/www/html/index.html
+```
+
+---
+
+### Module 13: EC2 Instance Role (IAM Role for EC2)
+
+**Simple Analogy:** Instead of giving your **employee (EC2)** a username/password to access the filing room (S3), you give them a **badge (role)** that grants automatic temporary access — no passwords stored anywhere.
+
+**Why use Roles instead of Access Keys?**
+- Access keys stored on EC2 can be stolen if the instance is compromised
+- Roles provide **temporary credentials** that auto-rotate every few hours
+- No hardcoded secrets in your code or environment
+
+**How it works:**
+```
+EC2 Instance → Assumes IAM Role → Gets temporary credentials → Accesses AWS services
+```
+
+**Hands-on Lab:**
+1. IAM → Roles → Create Role → Select **EC2** as trusted entity
+2. Attach policy: `AmazonS3ReadOnlyAccess`
+3. Name it: `ec2-s3-read-role`
+4. Launch EC2 → under **IAM Instance Profile** select `ec2-s3-read-role`
+5. SSH into EC2 → run:
+```bash
+# No credentials needed — role provides them automatically!
+aws s3 ls                           # Lists your S3 buckets ✅
+aws s3 cp s3://your-bucket/file .   # Downloads a file ✅
+```
+6. Launch another EC2 **without** the role → run same commands → **Access Denied** ✅
+
+---
+
+DAY 6
+
+### Module 14: EC2 Instance Purchasing Options
+
+**Simple Analogy:** Like booking a hotel — different ways to pay based on your needs.
+
+| Option | Hotel Analogy | Best For | Savings |
+|--------|--------------|----------|---------|
+| **On-Demand** | Pay per night, no commitment | Dev/test, unpredictable workloads | Baseline |
+| **Reserved (1yr/3yr)** | Book room for a year upfront | Steady production workloads | Up to 72% |
+| **Savings Plans** | Commit to hourly spend | Flexible workloads | Up to 66% |
+| **Spot Instances** | Last-minute hotel deal | Batch jobs, fault-tolerant tasks | Up to 90% |
+| **Dedicated Host** | Rent entire hotel floor | Compliance/BYOL licensing | Varies |
+| **Dedicated Instance** | Private room, no shared walls | Security-sensitive workloads | Higher cost |
+
+**Rule of Thumb:**
+```
+Always-on production DB?    → Reserved Instance (1 or 3 year)
+Variable web traffic?       → On-Demand + Auto Scaling
+Big data / ML training?     → Spot Instances (cheap, but can be interrupted)
+Compliance required?        → Dedicated Host
+```
+
+**Hands-on Lab:**
+1. EC2 Console → **Spot Requests** → Request Spot Instance
+2. Set max price (e.g., `$0.01/hr` for t3.micro)
+3. Instance launches only when spot price ≤ your max price ✅
+4. Go to **AWS Cost Explorer** → Savings Plans → view the savings calculator
+
+---
+
+### Module 15: Private IP, Public IP, and Elastic IP
+
+**Simple Analogy:**
+- **Private IP** = Your home address — only reachable inside your neighborhood (VPC)
+- **Public IP** = Your phone number — internet-reachable, but changes when you restart
+- **Elastic IP** = A permanent phone number you own — never changes
+
+| Type | Scope | Changes on Reboot? | Cost |
+|------|-------|-------------------|------|
+| Private IP | Inside VPC only | No — always same | Free |
+| Public IP | Internet-facing | Yes — on stop/start | Free while running |
+| Elastic IP | Internet-facing | No — static | Free if attached; ~$0.005/hr if idle |
+
+**IP Ranges:**
+```
+Private IPs use RFC 1918 ranges:
+  10.0.0.0/8
+  172.16.0.0/12
+  192.168.0.0/16
+
+Public IPs:  Assigned from AWS pool, released when instance stops
+Elastic IP:  Allocated to your account, you assign/reassign freely
+```
+
+**Hands-on Lab:**
+1. Launch EC2 → note the **Public IP** (e.g., `54.123.45.67`) and **Private IP** (e.g., `10.0.1.25`)
+2. **Stop** the instance → **Start** it → Public IP **changed** ✅, Private IP stayed same ✅
+3. Allocate an Elastic IP: EC2 → Elastic IPs → **Allocate Elastic IP address**
+4. Associate it with your instance
+5. Stop and Start again → Elastic IP **stays the same** ✅
+6. **Cleanup:** Release Elastic IP when not in use to avoid charges
+
+---
+
+### Module 16: EC2 Storage — EBS and EFS
+
+**Simple Analogy:**
+- **EBS** = USB hard drive — plugged into **one laptop (EC2)** at a time
+- **EFS** = Network shared drive (like Google Drive) — **multiple EC2s** can read/write simultaneously
+
+#### EBS (Elastic Block Store)
+
+| Feature | Details |
+|---------|---------|
+| Type | Block storage (like a hard disk) |
+| Attachment | One EC2 at a time (must be in same AZ) |
+| Persistence | Data survives instance stop/start |
+| Use case | OS disk, databases, application data |
+
+**EBS Volume Types:**
+```
+gp3  → General Purpose SSD     — default, best price/performance
+gp2  → Older General Purpose SSD
+io2  → Provisioned IOPS SSD    — high-performance databases (MySQL, Oracle)
+st1  → Throughput HDD          — big data, log processing
+sc1  → Cold HDD                — infrequent access, cheap archival
+```
+
+**EBS Hands-on Lab:**
+```bash
+# 1. Create a 10GB gp3 volume in same AZ as your EC2
+# 2. EC2 Console → Volumes → Attach Volume → select your instance
+
+# 3. SSH into EC2 and set it up:
+lsblk                           # See the new disk (e.g., /dev/xvdf)
+sudo mkfs -t ext4 nvme1n1    # Format the disk
+sudo mkdir /data                # Create mount point
+sudo mount /dev/nvme1n1 /data      # Mount it
+df -h                           # Verify it's mounted ✅
+
+# 4. Write and read data:
+echo "Hello EBS" | sudo tee /data/test.txt
+cat /data/test.txt              # Hello EBS ✅
+
+# 5. Persist mount across reboots — add to /etc/fstab:
+echo "/dev/xvdf /data ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab
+```
+
+#### EFS (Elastic File System)
+
+| Feature | Details |
+|---------|---------|
+| Type | Network file system (NFS) |
+| Attachment | Multiple EC2s simultaneously, across AZs |
+| Scaling | Automatically grows and shrinks |
+| Use case | Shared web content, CMS files, ML datasets |
+
+**EFS Hands-on Lab:**
+```bash
+# 1. EFS Console → Create File System → select your VPC → Create
+
+# 2. On BOTH EC2 instances — install NFS client:
+sudo yum install -y amazon-efs-utils
+
+# 3. Mount on both instances (replace fs-XXXXXXXX with your EFS ID):
+sudo mkdir /shared
+sudo mount -t efs fs-XXXXXXXX:/ /shared
+
+# 4. On EC2-1 — write a file:
+echo "Written from EC2-1" | sudo tee /shared/hello.txt
+
+# 5. On EC2-2 — read the same file:
+cat /shared/hello.txt           # "Written from EC2-1" ✅ Shared storage works!
+```
+
+**EBS vs EFS — When to use which:**
+```
+Use EBS when:
+  ✅ Single EC2 needs fast, dedicated storage
+  ✅ Running a database (MySQL, PostgreSQL)
+  ✅ OS root volume
+
+Use EFS when:
+  ✅ Multiple EC2s need to share the same files
+  ✅ Web server farm serving same static content
+  ✅ Machine learning — multiple training nodes reading same dataset
+```
+
+---
+
+### DAY 5 Summary
+
+| Topic | Key Takeaway |
+|-------|-------------|
+| IAM Users/Groups/Policies | Never use root; use groups to manage permissions at scale |
+| Security Groups | Stateful firewall at instance level; deny by default |
+| EC2 Instance Role | Assign roles, never hardcode credentials on EC2 |
+| Purchasing Options | On-Demand for flexibility, Reserved for savings, Spot for batch |
+| IP Types | Elastic IP = static public IP you own; regular public IP changes on reboot |
+| EBS vs EFS | EBS = one EC2, EFS = shared across many EC2s |
+
+  
+
   ---
+
+  ## Day 9 
+
+  ***********************************************************************************************
   Module 3: AWS Load Balancer (ELB)
 
   What is a Load Balancer? Distributes incoming traffic across multiple EC2 instances.
@@ -1198,6 +1480,263 @@ DAY 4
   6. Refresh multiple times → Traffic alternates between Server 1 and Server 2!
 
   ---
+
+  # Terraform for Beginners
+
+  ## What is Terraform?
+
+  Terraform is an open-source **Infrastructure as Code (IaC)** tool by HashiCorp.
+  It lets you define, provision, and manage cloud infrastructure using a simple
+  declarative configuration language called **HCL (HashiCorp Configuration Language)**.
+
+  Instead of clicking through cloud consoles, you write code to create servers,
+  databases, networks, and more — on AWS, Azure, GCP, or any cloud provider.
+
+  ---
+
+  ## Why Terraform?
+
+  | Problem (Without Terraform)       | Solution (With Terraform)              |
+  |-----------------------------------|----------------------------------------|
+  | Manual clicks in cloud console    | Code-driven, repeatable setup          |
+  | Hard to replicate environments    | Same code for dev, staging, production |
+  | No history of infra changes       | Version-controlled infrastructure      |
+  | Different tools per cloud         | One tool for all cloud providers       |
+
+  ---
+
+  ## Core Concepts
+
+  ### 1. Provider
+  A **provider** is a plugin that lets Terraform talk to a cloud platform or service.
+
+  ```hcl
+  provider "aws" {
+    region = "us-east-1"
+  }
+
+  2. Resource
+
+  A resource is the actual infrastructure component you want to create (e.g., EC2 instance, S3 bucket).
+
+  resource "aws_instance" "my_server" {
+    ami           = "ami-0c55b159cbfafe1f0"
+    instance_type = "t2.micro"
+  }
+
+  3. Variable
+
+  Variables make your code reusable and configurable.
+
+  variable "region" {
+    description = "AWS region"
+    default     = "us-east-1"
+  }
+
+  4. Output
+
+  Outputs display useful information after Terraform applies changes.
+
+  output "server_ip" {
+    value = aws_instance.my_server.public_ip
+  }
+
+  5. State
+
+  Terraform stores the current state of your infrastructure in a state file (terraform.tfstate).
+  It uses this to know what exists and what needs to change.
+
+  6. Module
+
+  A module is a reusable group of Terraform resources — like a function in programming.
+
+  ---
+  Terraform Workflow (The 4 Key Commands)
+
+  terraform init       # Download providers and initialize the project
+  terraform plan       # Preview what changes will be made (dry run)
+  terraform apply      # Apply the changes to create/update infrastructure
+  terraform destroy    # Tear down all the infrastructure
+
+  Step-by-step flow:
+
+  Write .tf files  →  terraform init  →  terraform plan  →  terraform apply
+
+  ---
+  File Structure
+
+  my-project/
+  ├── main.tf          # Main resource definitions
+  ├── variables.tf     # Input variable declarations
+  ├── outputs.tf       # Output value declarations
+  ├── terraform.tfvars # Actual variable values (don't commit secrets!)
+  └── provider.tf      # Provider configuration
+
+  ---
+  Your First Terraform Project (AWS S3 Bucket)
+
+  Step 1 — Install Terraform
+
+  Download from: https://developer.hashicorp.com/terraform/downloads
+
+  Verify installation:
+  terraform -version
+
+  Step 2 — Write the configuration
+
+  provider.tf
+  terraform {
+    required_providers {
+      aws = {
+        source  = "hashicorp/aws"
+        version = "~> 5.0"
+      }
+    }
+  }
+
+  provider "aws" {
+    region = var.region
+  }
+
+  variables.tf
+  variable "region" {
+    description = "AWS region to deploy resources"                                                                                                                                                                 
+    type        = string                          
+    default     = "us-east-1"                                                                                                                                                                                      
+  }                          
+   
+  variable "bucket_name" {
+    description = "Name of the S3 bucket"
+    type        = string                 
+  }                                                                                                                                                                                                                
+                                                                                                                                                                                                                   
+  main.tf                                                                                                                                                                                                          
+  resource "aws_s3_bucket" "my_bucket" {                                                                                                                                                                           
+    bucket = var.bucket_name            
+                            
+    tags = {                                                                                                                                                                                                       
+      Environment = "dev"
+      ManagedBy   = "Terraform"                                                                                                                                                                                    
+    }                          
+  }  
+   
+  outputs.tf
+  output "bucket_name" {                                                                                                                                                                                           
+    description = "The name of the S3 bucket"
+    value       = aws_s3_bucket.my_bucket.id                                                                                                                                                                       
+  }                                                                                                                                                                                                                
+  
+  terraform.tfvars                                                                                                                                                                                                 
+  bucket_name = "my-first-terraform-bucket-12345"
+                                                                                                                                                                                                                   
+  Step 3 — Run Terraform
+                                                                                                                                                                                                                   
+  terraform init      # Initialize (downloads AWS provider)
+  terraform plan      # See what will be created                                                                                                                                                                   
+  terraform apply     # Type 'yes' to confirm and create the bucket
+  terraform destroy   # Clean up when done                                                                                                                                                                         
+                  
+  ---                                                                                                                                                                                                              
+  Key HCL Syntax Rules
+                                                                                                                                                                                                                   
+  # This is a comment
+                                                                                                                                                                                                                   
+  # Block syntax                                                                                                                                                                                                   
+  resource "resource_type" "name" {
+    argument = "value"                                                                                                                                                                                             
+  }               
+
+  # Reference another resource
+  value = resource_type.name.attribute
+                                                                                                                                                                                                                   
+  # Use a variable
+  value = var.variable_name                                                                                                                                                                                        
+                  
+  # String interpolation                                                                                                                                                                                           
+  name = "prefix-${var.environment}-suffix"
+                                                                                                                                                                                                                   
+  # List                                                                                                                                                                                                           
+  availability_zones = ["us-east-1a", "us-east-1b"]                                                                                                                                                                
+                                                                                                                                                                                                                   
+  # Map           
+  tags = {
+    key   = "value"
+    owner = "team-name"
+  }
+
+  ---                                                                                                                                                                                                              
+  Terraform State — Important Points
+                                                                                                                                                                                                                   
+  - terraform.tfstate — tracks what Terraform has created
+  - Never manually edit the state file                                                                                                                                                                             
+  - Never delete it accidentally (you'll lose track of your infra)
+  - For teams, store state remotely (e.g., AWS S3 + DynamoDB for locking)                                                                                                                                          
+                                                                                                                                                                                                                   
+  # Remote state example (S3 backend)                                                                                                                                                                              
+  terraform {                                                                                                                                                                                                      
+    backend "s3" {
+      bucket = "my-terraform-state"                                                                                                                                                                                
+      key    = "project/terraform.tfstate"
+      region = "us-east-1"                                                                                                                                                                                         
+    }                                                                                                                                                                                                              
+  }                                                                                                                                                                                                                
+                                                                                                                                                                                                                   
+  ---             
+  Common Mistakes to Avoid
+                          
+  ┌──────────────────────────────────────────┬────────────────────────────────────────┐
+  │                 Mistake                  │           Why It's a Problem           │                                                                                                                            
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤
+  │ Committing terraform.tfvars with secrets │ Exposes credentials in version control │                                                                                                                            
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤
+  │ Skipping terraform plan                  │ Surprises during apply                 │                                                                                                                            
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤                                                                                                                            
+  │ Using latest provider version            │ Breaking changes can occur             │                                                                                                                            
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤                                                                                                                            
+  │ Hardcoding values instead of variables   │ Code is not reusable                   │
+  ├──────────────────────────────────────────┼────────────────────────────────────────┤                                                                                                                            
+  │ Not using remote state in teams          │ State conflicts between team members   │
+  └──────────────────────────────────────────┴────────────────────────────────────────┘                                                                                                                            
+  
+  ---                                                                                                                                                                                                              
+  Useful Commands Cheat Sheet
+
+  terraform init              # Initialize project
+  terraform plan              # Dry run                                                                                                                                                                            
+  terraform apply             # Apply changes
+  terraform apply -auto-approve  # Skip confirmation prompt                                                                                                                                                        
+  terraform destroy           # Destroy all resources                                                                                                                                                              
+  terraform fmt               # Format .tf files
+  terraform validate          # Check config for errors                                                                                                                                                            
+  terraform show              # Show current state                                                                                                                                                                 
+  terraform output            # Show output values
+  terraform state list        # List all resources in state                                                                                                                                                        
+                                                                                                                                                                                                                   
+  ---                                                                                                                                                                                                              
+  Learning Path                                                                                                                                                                                                    
+                  
+  1. Week 1 — Install Terraform, understand HCL syntax, create a simple S3 bucket or resource group
+  2. Week 2 — Learn variables, outputs, and data sources                                                                                                                                                           
+  3. Week 3 — Explore modules, remote state, and workspaces                                                                                                                                                        
+  4. Week 4 — Build a real project: VPC + EC2 + Security Groups on AWS                                                                                                                                             
+                                                                                                                                                                                                                   
+  ---                                                                                                                                                                                                              
+  Further Reading                                                                                                                                                                                                  
+                  
+  - Official Docs: https://developer.hashicorp.com/terraform/docs
+  - Registry (providers & modules): https://registry.terraform.io                                                                                                                                                  
+  - Interactive tutorials: https://developer.hashicorp.com/terraform/tutorials                                                                                                                                     
+                                                                                                                                                                                                                   
+  ---                                                                                                                                                                                                              
+                                                                                                                                                                                                                   
+  This covers everything a fresher needs to get started:                                                                                                                                                           
+  - **What** Terraform is and **why** it's used
+  - **Core concepts** with simple examples                                                                                                                                                                         
+  - **Hands-on first project** (S3 bucket)                                                                                                                                                                         
+  - **HCL syntax** reference                                                                                                                                                                                       
+  - **Common mistakes** to avoid                                                                                                                                                                                   
+  - **Cheat sheet** of commands
+  - A **learning path** for the next 4 weeks      
   Module 4: AWS Lambda
 
   What is Lambda? Run code WITHOUT managing servers. Pay only when code runs.
@@ -1316,5 +1855,7 @@ DAY 4
   - **Architecture diagram** showing how all services connect
   - **Cleanup steps** to avoid unexpected AWS charges
   - **6-week learning roadmap** for structured progression
+
+  
 
 
